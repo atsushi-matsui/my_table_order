@@ -15,4 +15,11 @@ source_md5 = ""
 packagetype = "Zip"
 functions = ["GooodNightFunction"]
 
+[function_build_definitions.155e928e-c2ad-4cb8-ab46-6caa5226b95c]
+codeuri = "/Users/atsushimatsui/src/my_table_order/backend/app/get_menu"
+runtime = "python3.8"
+source_md5 = ""
+packagetype = "Zip"
+functions = ["GetMenuFunction"]
+
 [layer_build_definitions]

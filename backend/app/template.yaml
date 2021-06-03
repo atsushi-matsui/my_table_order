@@ -10,7 +10,71 @@ Globals:
   Function:
     Timeout: 3
 
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+    Default: dev
+
+Mappings:
+  EnvironmentMap:
+    dev:
+      LineChannelId: LineChannelId
+      LIFFChannelId: LIFFChannelId
+      LiffUrl: https://liff.line.me/LIFF-ID
+      LinePayChannelId: LinePayChannelId
+      LinePayChannelSecret: LinePayChannelSecret
+      LinePayIsSandbox: True
+      ItemListDBName: matsuiTestDB
+      PaymentInfoDBName: PaymentInfoDBName
+      LINEChannelAccessTokenDBName: LINEChannelAccessTokenDBTableOrderDev
+      FrontS3BucketName: S3 Name for FrontEnd
+      LayerVersion: Layer Version
+      LoggerLevel: INFO
+      LambdaMemorySize: 128 to 3008
+      # TTL is True:Reservation Data will be deleted at the specified date, False:Data will not be deleted
+      TTL: False
+      # Set day to delete data
+      # If you set TTL: True, data will be deleted in the period specified below.
+      TTLDay: 10
+      # ### ACCESS LOG SETTING ###
+      # LogS3Bucket: S3BucketName for AccessLog
+      # LogFilePrefix: tableorder-sample/
+      # ### ACCESS LOG SETTING ###
+    prod:
+      LineChannelId: LineChannelId
+      LIFFChannelId: LIFFChannelId
+
 Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt TableOrderItemList.Arn
+      RoleName: !Sub "${AWS::StackName}-LambdaRole"
+
   HelloWorldFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -35,6 +99,47 @@ Resources:
           Properties:
             Path: /nigh
             Method: get
+  GetMenuFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: get_menu/
+      Handler: get_menu.lambda_handler
+      Runtime: python3.8
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          ITEM_LIST_DB: !Ref TableOrderItemList
+      Events:
+        GoodNight:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /get_menu
+            Method: get
+           
+  TableOrderItemList:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: categoryId
+          AttributeType: N
+        - AttributeName: categoryName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: categoryId
+          KeyType: HASH
+        - AttributeName: categoryName
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, ItemListDBName]
+      Tags:
+        - Key: "Name"
+          Value: "LINE"
+        - Key: "App"
+          Value: "TableOrder"
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
@@ -46,6 +151,9 @@ Outputs:
   GooodNightApi:
     Description: "API Gateway endpoint URL for Prod stage for Goood Night function"
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/nigh/"
+  GetMenuApi:
+    Description: "API Gateway endpoint URL for Prod stage for Get Menu function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/get_menu/"
   HelloWorldFunction:
     Description: "Hello World Lambda Function ARN"
     Value: !GetAtt HelloWorldFunction.Arn
