@@ -22,4 +22,11 @@ source_md5 = ""
 packagetype = "Zip"
 functions = ["GetMenuFunction"]
 
+[function_build_definitions.f2685c8f-5a90-4a92-8e9e-382612897077]
+codeuri = "/Users/atsushimatsui/src/my_table_order/backend/app/post_picture"
+runtime = "python3.8"
+source_md5 = ""
+packagetype = "Zip"
+functions = ["PostPictureFunction"]
+
 [layer_build_definitions]

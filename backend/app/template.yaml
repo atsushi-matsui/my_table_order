@@ -27,11 +27,12 @@ Mappings:
       LinePayChannelId: LinePayChannelId
       LinePayChannelSecret: LinePayChannelSecret
       LinePayIsSandbox: True
-      ItemListDBName: matsuiTestDB
+      User: user
+      Picture: picture
       PaymentInfoDBName: PaymentInfoDBName
       LINEChannelAccessTokenDBName: LINEChannelAccessTokenDBTableOrderDev
       FrontS3BucketName: S3 Name for FrontEnd
-      LayerVersion: Layer Version
+      LayerVersion: 2
       LoggerLevel: INFO
       LambdaMemorySize: 128 to 3008
       # TTL is True:Reservation Data will be deleted at the specified date, False:Data will not be deleted
@@ -75,88 +76,77 @@ Resources:
                   - !GetAtt TableOrderItemList.Arn
       RoleName: !Sub "${AWS::StackName}-LambdaRole"
 
-  HelloWorldFunction:
+  PostPictureFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: hello_world/
-      Handler: app.lambda_handler
+      CodeUri: post_picture/
+      Handler: post_picture.lambda_handler
       Runtime: python3.8
-      Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /hello
-            Method: get
-  GooodNightFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Properties:
-      CodeUri: good_night/
-      Handler: app.lambda_handler
-      Runtime: python3.8
-      Events:
-        GoodNight:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /nigh
-            Method: get
-  GetMenuFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Properties:
-      CodeUri: get_menu/
-      Handler: get_menu.lambda_handler
-      Runtime: python3.8
+      Layers:
+        - !Join
+          - ":"
+          - - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer"
+            - !ImportValue StrageLayerDev
+            - !FindInMap [EnvironmentMap, !Ref Environment, LayerVersion]
       Role: !GetAtt LambdaRole.Arn
       Environment:
         Variables:
-          ITEM_LIST_DB: !Ref TableOrderItemList
+          PICTURE_DB: !Ref Picture
       Events:
-        GoodNight:
+        PostPicture:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            Path: /get_menu
-            Method: get
+            Path: /post_picture
+            Method: post
            
-  TableOrderItemList:
+  User:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
-        - AttributeName: categoryId
+        - AttributeName: lineId
           AttributeType: N
-        - AttributeName: categoryName
+      KeySchema:
+        - AttributeName: lineId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, User]
+      Tags:
+        - Key: "Name"
+          Value: "LINE"
+        - Key: "App"
+          Value: "TableOrder"
+  Picture:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: lineId
+          AttributeType: N
+        - AttributeName: createDateTime
           AttributeType: S
       KeySchema:
-        - AttributeName: categoryId
+        - AttributeName: lineId
           KeyType: HASH
-        - AttributeName: categoryName
+        - AttributeName: createDateTime
           KeyType: RANGE
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
       StreamSpecification:
         StreamViewType: NEW_IMAGE
-      TableName: !FindInMap [EnvironmentMap, !Ref Environment, ItemListDBName]
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, Picture]
       Tags:
         - Key: "Name"
           Value: "LINE"
         - Key: "App"
           Value: "TableOrder"
-
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  GooodNightApi:
-    Description: "API Gateway endpoint URL for Prod stage for Goood Night function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/nigh/"
-  GetMenuApi:
-    Description: "API Gateway endpoint URL for Prod stage for Get Menu function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/get_menu/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: "Implicit IAM Role created for Hello World function"
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+  PostPictureApi:
+    Description: "API Gateway endpoint URL for Prod stage for Post Picture function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/post_picrure/"
