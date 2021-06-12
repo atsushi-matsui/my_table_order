@@ -27,12 +27,12 @@ Mappings:
       LinePayChannelId: LinePayChannelId
       LinePayChannelSecret: LinePayChannelSecret
       LinePayIsSandbox: True
-      User: user
-      Picture: picture
+      UserTableName: User
+      PictureTableName: Picture
       PaymentInfoDBName: PaymentInfoDBName
       LINEChannelAccessTokenDBName: LINEChannelAccessTokenDBTableOrderDev
       FrontS3BucketName: S3 Name for FrontEnd
-      LayerVersion: 2
+      LayerVersion: 3
       LoggerLevel: INFO
       LambdaMemorySize: 128 to 3008
       # TTL is True:Reservation Data will be deleted at the specified date, False:Data will not be deleted
@@ -73,9 +73,10 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:Scan
                 Resource:
-                  - !GetAtt TableOrderItemList.Arn
+                  - !GetAtt UserTable.Arn
+                  - !GetAtt PictureTable.Arn
       RoleName: !Sub "${AWS::StackName}-LambdaRole"
-
+  # lambdaを設定
   PostPictureFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -91,15 +92,38 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Environment:
         Variables:
-          PICTURE_DB: !Ref Picture
+          PICTURE_DB: !Ref PictureTable
       Events:
         PostPicture:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
             Path: /post_picture
             Method: post
-           
-  User:
+  GetPictureFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: get_picture/
+      Handler: get_picture.lambda_handler
+      Runtime: python3.8
+      Layers:
+        - !Join
+          - ":"
+          - - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer"
+            - !ImportValue StrageLayerDev
+            - !FindInMap [EnvironmentMap, !Ref Environment, LayerVersion]
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          PICTURE_DB: !Ref PictureTable
+      Events:
+        PostPicture:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /get_picture
+            Method: get
+  
+  # テーブル情報を設定   
+  UserTable:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
@@ -113,13 +137,13 @@ Resources:
         WriteCapacityUnits: 1
       StreamSpecification:
         StreamViewType: NEW_IMAGE
-      TableName: !FindInMap [EnvironmentMap, !Ref Environment, User]
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, UserTableName]
       Tags:
         - Key: "Name"
           Value: "LINE"
         - Key: "App"
           Value: "TableOrder"
-  Picture:
+  PictureTable:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
@@ -137,16 +161,20 @@ Resources:
         WriteCapacityUnits: 1
       StreamSpecification:
         StreamViewType: NEW_IMAGE
-      TableName: !FindInMap [EnvironmentMap, !Ref Environment, Picture]
+      TableName: !FindInMap [EnvironmentMap, !Ref Environment, PictureTableName]
       Tags:
         - Key: "Name"
           Value: "LINE"
         - Key: "App"
           Value: "TableOrder"
+# RestAPIのエンドポイントを設定
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
   PostPictureApi:
     Description: "API Gateway endpoint URL for Prod stage for Post Picture function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/post_picrure/"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/post_picture/"
+  GetPictureApi:
+    Description: "API Gateway endpoint URL for Prod stage for Get Picture function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/get_picture/"
